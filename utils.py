@@ -3,33 +3,31 @@ from tkinter import Label
 import tkinter as tk
 import cv2
 
-img_label_original = None
-img_label_processed = None
+imgLabelOriginal = None
+imgLabelProcessed = None
 
-def resize_image(image, max_width, max_height):
-    return cv2.resize(image, (640, 640))
+def resize_image(image):
+    return cv2.resize(image, (350, 400))        #resize image to 350 x 400
 
-def showImage(image, title, window_width, window_height, isOriginal=False):
-    global img_label_original, img_label_processed
-    max_width, max_height = 300, 500
+def showImage(image, title, isOriginal=False):
+    global imgLabelOriginal, imgLabelProcessed
 
-    img_pil = Image.fromarray(image)  # No need for RGB conversion for grayscale images
-    img_tk = ImageTk.PhotoImage(img_pil)
+    imgpil = Image.fromarray(image)
+    imgfin = ImageTk.PhotoImage(imgpil)
 
-    # Determine which label to update
     if isOriginal:
-        if img_label_original is None:
-            img_label_original = Label(image=img_tk)
-            img_label_original.image = img_tk
-            img_label_original.pack(side=tk.LEFT, padx=10, pady=10)
+        if imgLabelOriginal is None:
+            imgLabelOriginal = Label(image=imgfin)
+            imgLabelOriginal.image = imgfin
+            imgLabelOriginal.pack(side=tk.LEFT, padx=10, pady=10)
         else:
-            img_label_original.config(image=img_tk)
-            img_label_original.image = img_tk
+            imgLabelOriginal.config(image=imgfin)
+            imgLabelOriginal.image = imgfin
     else:
-        if img_label_processed is None:
-            img_label_processed = Label(image=img_tk)
-            img_label_processed.image = img_tk
-            img_label_processed.pack(side=tk.RIGHT, padx=10, pady=10)
+        if imgLabelProcessed is None:
+            imgLabelProcessed = Label(image=imgfin)
+            imgLabelProcessed.image = imgfin
+            imgLabelProcessed.pack(side=tk.RIGHT, padx=10, pady=10)
         else:
-            img_label_processed.config(image=img_tk)
-            img_label_processed.image = img_tk
+            imgLabelProcessed.config(image=imgfin)
+            imgLabelProcessed.image = imgfin

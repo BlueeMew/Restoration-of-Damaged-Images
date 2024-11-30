@@ -21,20 +21,10 @@ def create_mask(image):
     return binary_mask
 
 #function for filling the masked parts
-
 def inpaint_image(image, mask):
-    
     return cv2.inpaint(image, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
 
-#function for sharpening the image as initially we have blurred a little to remove noise
-
-# def sharpen_image(image):
-#     blurred = cv2.GaussianBlur(image, (9, 9), 2)
-#     sharpened = cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
-#     return sharpened
-
 #function for highlighting damages using the mouse
-
 def highlight_damages(event, x, y, flags, param):
     global ix, iy, drawing
     if event == cv2.EVENT_LBUTTONDOWN:
@@ -47,18 +37,45 @@ def highlight_damages(event, x, y, flags, param):
     elif event == cv2.EVENT_LBUTTONUP:
         drawing = False
 
+# Another function to fill the stains
+def grad_fill(image, mask):
+    # Copy the input image to avoid modifying the original
+    filled_image = image.copy()
+
+    # Dilating the mask to increase the area of mask
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    
+    # Subtracting the mask from dilated mask to obtain mask boundary pixels
+    boundary_mask = cv2.dilate(mask, kernel) - mask
+
+    # Get indices of boundary pixels
+    boundary_indices = np.where(boundary_mask == 255)
+
+    # Get pixel values of boundary pixels
+    boundary_values = filled_image[boundary_indices]
+    
+    masked_indices = np.where(mask == 255) # All the pixels that are required to filled are found
+    for y, x in zip(*masked_indices):
+
+        # Compute distances to all boundary pixels
+        distances = np.sqrt((boundary_indices[0] - y)**2 + (boundary_indices[1] - x)**2)
+
+        # CLosest pixel is found to use it's value
+        closest_ind = np.argmin(distances)
+        filled_image[y, x] = boundary_values[closest_ind]
+
+    return filled_image
+
+#function for removing stains 
 def stain_removal(img):
     global brush_size  
 
-    cv2.imshow('original-image',img)
-    cv2.waitKey(0)
-    if img is None:
-        print("Error: Could not open or find the image.")
-        return
-    # resize_image(img,800,600)
-    #  Remove noise
-    #img = remove_noise(img)
-    img=cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    cv2.imshow('original-image',img)  # original image is displayed
+    cv2.waitKey(0)                    # press any key to go to next step
+
+    #converting back to bgr for painting with red brush
+    img=cv2.cvtColor(img, cv2.COLOR_GRAY2BGR) 
+
     # Create a window for painting damages
     cv2.namedWindow('Image')
     cv2.setMouseCallback('Image', highlight_damages, param=img)
@@ -72,7 +89,7 @@ def stain_removal(img):
         cv2.imshow('Image', img_copy)
         key = cv2.waitKey(1) & 0xFF
 
-        if key == ord('q'):
+        if key == ord('q'):     # press q to stop drawing and move to next step
             break
         if key == ord('+'):
             brush_size += 1
@@ -81,15 +98,18 @@ def stain_removal(img):
 
     # Generate mask and inpaint the image
     mask = create_mask(img)
-    cv2.imshow('img-mask',mask)
-    cv2.waitKey(0)
-    inpainted_image = inpaint_image(img, mask)
+    cv2.imshow('img-mask',mask) # binary mask is displayed
+    cv2.waitKey(0)              # press any key to go to next step
 
-    #  Sharpen the image
-    # sharpened_image = sharpen_image(inpainted_image)
+    inpainted_image = inpaint_image(img, mask)    # filling the image using inpaint function
+    customInpaintedImage = grad_fill(img,mask)  # filling the image using gradient filling function we wrote
+
+    #convert color image into gray scale image
     img=cv2.cvtColor(inpainted_image,cv2.COLOR_BGR2GRAY)
-    cv2.imshow('Restored Image', inpainted_image)
-    cv2.waitKey(0)
+
+    cv2.imshow('Restored Image', inpainted_image) # Finally displayed the output image
+    cv2.waitKey(0)                                # Press any key to remove all the windows
+
     # Remove all windows
     cv2.destroyAllWindows()
-    return img
+    return img, customInpaintedImage

@@ -2,36 +2,49 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-def apply_histogram_equalization(processed_img, window_width, window_height):
-    # Step 1: Compute the histogram
-    print(processed_img.flatten)
-    hist, bins = np.histogram(processed_img.flatten(), bins=256, range=[0, 256])
+def applyHistogramEqualization(processedImage):
+    histogram = np.zeros(256, dtype=int)
+    for pixel in processedImage.flatten():          #calculating frequency fo intensity values
+        histogram[pixel] += 1
     
-    plt.hist(processed_img.flatten(), bins=256, range=[0, 256], color='gray')
-    plt.title("histogram of image")
-    plt.xlabel('Pixel Intensity')
-    plt.ylabel('Frequency')
-    plt.show()
+    plt.bar(range(256), histogram, color='gray', width=1)
+    plt.title("Histogram of Original Image")
+    plt.xlabel("Intensity Level")
+    plt.ylabel("Frequency")
+    plt.show()   #show the histogram of the image before histogram equilizaiton
 
-    # Step 2: Compute the cumulative distribution function (CDF)
-    cdf = hist.cumsum()
-    cdf_normalized = cdf * (255 / cdf[-1])  # Normalize to the range [0, 255]
+    cdf = np.zeros_like(histogram, dtype=float)
+    cdf[0] = histogram[0]
+    for i in range(1, len(histogram)):          #computing the cumulative addition of the intensity levels
+        cdf[i] = cdf[i-1]+histogram[i]
     
-    # Step 3: Map the original pixel values to equalized values
-    equalized_image = np.interp(processed_img.flatten(), bins[:-1], cdf_normalized).reshape(processed_img.shape)
+    cdfNormalized = (cdf-cdf.min())/(cdf.max()-cdf.min())*255  #getting the final intensity level my normalizing the above cumulative addition and multiplying it with 255
+
+    equalizedImage = np.zeros_like(processedImage, dtype=np.uint8)
+    for i in range(processedImage.shape[0]):
+        for j in range(processedImage.shape[1]):
+            equalizedImage[i, j] = int(cdfNormalized[processedImage[i, j]])    #mapping the original pixel values to equilized values
+
+    histogramEquilized = np.zeros(256, dtype=int)
+    for pixel in equalizedImage.flatten():                  #calculating frequency of equilized image
+        histogramEquilized[pixel] += 1
     
-    return equalized_image.astype(np.uint8)
+    plt.bar(range(256), histogramEquilized, color='gray', width=1)
+    plt.title("Histogram of Equalized Image")
+    plt.xlabel("Intensity Level")
+    plt.ylabel("Frequency")
+    plt.show()      #show the histogram of the image after histogram equilizatioin
 
-def apply_unsharp_masking(processed_img, window_width, window_height):
-    if processed_img is not None:
-        gaussian_blur = cv2.GaussianBlur(processed_img, (9, 9), 10.0)
-        processed_img = cv2.addWeighted(processed_img, 1.5, gaussian_blur, -0.5, 0)
-    return processed_img
+    return equalizedImage
 
-def adjust_brightness_gamma(processed_img, window_width, window_height):
-    if processed_img is not None:
-        brightness = 30
-        gamma = 1.2
-        bright_img = cv2.convertScaleAbs(processed_img, alpha=1, beta=brightness)
-        processed_img = np.array(255 * (bright_img / 255) ** gamma, dtype='uint8')
-    return processed_img
+def applyUnsharpMasking(processedImage):
+    gaussianBlur = cv2.GaussianBlur(processedImage, (9, 9), 1.0)  #applying Guassian blurr to the image 
+    processedImage = cv2.addWeighted(processedImage, 1.5, gaussianBlur, -0.5, 0) # 1.5*initial image - 0.5*blurred image to enhance edges
+    return processedImage
+
+def adjustBrightnessGamma(processedImage):
+    brightness = 15
+    gamma = 0.8         
+    brightened = cv2.convertScaleAbs(processedImage,alpha=1,beta=brightness)    #adds constant value to all pixels
+    processedImage = np.array(255*(brightened/255)**gamma,dtype='uint8')      #applys the non linear gamma equation
+    return processedImage
