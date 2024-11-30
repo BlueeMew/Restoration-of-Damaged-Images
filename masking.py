@@ -12,6 +12,14 @@ def median_blur(image):
     filtered_image = cv2.medianBlur(image, 5)  # Kernel size of 5
     return cv2.cvtColor(filtered_image, cv2.COLOR_GRAY2BGR)
 
+#function to extract edges
+def extract_edges(image,kernel_size):
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(kernel_size,kernel_size))
+    dilated = cv2.dilate(image,kernel,iterations=1)       #doing dilation to image
+    eroded = cv2.erode(image,kernel,iterations=1)         #doing erosion to image
+    edges = dilated-eroded                                #dilation-erosion to get edges
+    return edges
+
 #function for creating mask for the damaged part of image
 def create_mask(image):
    
@@ -38,7 +46,7 @@ def highlight_damages(event, x, y, flags, param):
         drawing = False
 
 # Another function to fill the stains
-def grad_fill(image, mask):
+def nearestBoundaryPixelFill(image, mask):
     # Copy the input image to avoid modifying the original
     filled_image = image.copy()
 
@@ -60,10 +68,54 @@ def grad_fill(image, mask):
         # Compute distances to all boundary pixels
         distances = np.sqrt((boundary_indices[0] - y)**2 + (boundary_indices[1] - x)**2)
 
-        # CLosest pixel is found to use it's value
+        # CLosest pixel is found so use it's value
         closest_ind = np.argmin(distances)
         filled_image[y, x] = boundary_values[closest_ind]
 
+    return filled_image
+
+# Another function to fill the stains 
+def binarySearchFill(image, mask):
+    filled_image = image.copy()
+
+    rows, cols = np.where(mask==255)          #Identify rows and columns with masked areas
+
+    #process each row in masked regions
+    for row in np.unique(rows):
+        # Find all masked regions in the row
+        masked_indices =np.where(mask[row,:]==255)[0]       #find all masked regions in the row
+
+        if len(masked_indices)==0:
+            continue
+
+        #finding boundary pixels
+        start_idx = masked_indices[0]-1  #pixel before mask
+        end_idx = masked_indices[-1]+1  #pixel after mask
+
+        if start_idx<0 or end_idx>=filled_image.shape[1]:
+            continue  # Skip regions that cannot interpolate due to boundary conditions
+
+        #getting Boundary pixel intensities
+        start_value = filled_image[row,start_idx]
+        end_value = filled_image[row,end_idx]
+
+        #filling the masked region iteratively using a binary search
+        mid_indices = masked_indices
+        while len(mid_indices)>0:
+            mid_point = len(mid_indices)//2
+            mid_idx = mid_indices[mid_point]
+            
+            #Compute the average of the two boundary pixels
+            filled_image[row, mid_idx] = (start_value+end_value)//2
+
+            #Update mask to exclude the filled point
+            mask[row,mid_idx] =0
+            
+            #assigning intensities to middle indices
+            left_indices = mid_indices[:mid_point]
+            right_indices = mid_indices[mid_point+1:]
+            
+            mid_indices = np.hstack((left_indices,right_indices))
     return filled_image
 
 #function for removing stains 
@@ -102,7 +154,7 @@ def stain_removal(img):
     cv2.waitKey(0)              # press any key to go to next step
 
     inpainted_image = inpaint_image(img, mask)    # filling the image using inpaint function
-    customInpaintedImage = grad_fill(img,mask)  # filling the image using gradient filling function we wrote
+    customInpaintedImage = nearestBoundaryPixelFill(img,mask)  # filling the image using gradient filling function we wrote
 
     #convert color image into gray scale image
     img=cv2.cvtColor(inpainted_image,cv2.COLOR_BGR2GRAY)
