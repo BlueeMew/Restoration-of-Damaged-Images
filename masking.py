@@ -48,76 +48,42 @@ def highlight_damages(event, x, y, flags, param):
 # Another function to fill the stains
 def nearestBoundaryPixelFill(image, mask):
     # Copy the input image to avoid modifying the original
-    filled_image = image.copy()
-
-    # Dilating the mask to increase the area of mask
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    
-    # Subtracting the mask from dilated mask to obtain mask boundary pixels
-    boundary_mask = cv2.dilate(mask, kernel) - mask
-
-    # Get indices of boundary pixels
-    boundary_indices = np.where(boundary_mask == 255)
-
-    # Get pixel values of boundary pixels
-    boundary_values = filled_image[boundary_indices]
-    
-    masked_indices = np.where(mask == 255) # All the pixels that are required to filled are found
-    for y, x in zip(*masked_indices):
-
+    resultant_image = image.copy()
+    # Getting info on boundary pixels
+    mask_boundary = d(mask)-mask
+    boundary_indices = np.where(mask_boundary == 255)
+    boundary_values = resultant_image[boundary_indices]
+    # All the pixels that are required to filled are found
+    masked_indices = np.where(mask == 255) 
+    for x, y in zip(*masked_indices):
         # Compute distances to all boundary pixels
-        distances = np.sqrt((boundary_indices[0] - y)**2 + (boundary_indices[1] - x)**2)
-
+        distances = np.sqrt((boundary_indices[1] - y)**2 + (boundary_indices[0] - x)**2)
         # CLosest pixel is found so use it's value
         closest_ind = np.argmin(distances)
-        filled_image[y, x] = boundary_values[closest_ind]
+        resultant_image[x,y] = boundary_values[closest_ind]
+    return resultant_image
 
-    return filled_image
+#Fill gaps in the image based on custom approach binary search fill
+def BinarySearchFill(img, mask):
+    filled = img.copy()
+    rows_to_check = np.unique(np.where(mask == 255)[0])
 
-# Another function to fill the stains 
-def binarySearchFill(image, mask):
-    filled_image = image.copy()
-
-    rows, cols = np.where(mask==255)          #Identify rows and columns with masked areas
-
-    #process each row in masked regions
-    for row in np.unique(rows):
-        # Find all masked regions in the row
-        masked_indices =np.where(mask[row,:]==255)[0]       #find all masked regions in the row
-
-        if len(masked_indices)==0:
+    for row in rows_to_check:
+        cols_to_fill = np.where(mask[row, :] == 255)[0]
+        if len(cols_to_fill) == 0:     #if no pixels in mask
             continue
-
-        #finding boundary pixels
-        start_idx = masked_indices[0]-1  #pixel before mask
-        end_idx = masked_indices[-1]+1  #pixel after mask
-
-        if start_idx<0 or end_idx>=filled_image.shape[1]:
-            continue  # Skip regions that cannot interpolate due to boundary conditions
-
-        #getting Boundary pixel intensities
-        start_value = filled_image[row,start_idx]
-        end_value = filled_image[row,end_idx]
-
-        #filling the masked region iteratively using a binary search
-        mid_indices = masked_indices
-        while len(mid_indices)>0:
-            mid_point = len(mid_indices)//2
-            mid_idx = mid_indices[mid_point]
-            
-            #Compute the average of the two boundary pixels
-            filled_image[row, mid_idx] = (start_value+end_value)//2
-
-            #Update mask to exclude the filled point
-            mask[row,mid_idx] =0
-            
-            #assigning intensities to middle indices
-            left_indices = mid_indices[:mid_point]
-            right_indices = mid_indices[mid_point+1:]
-            
-            mid_indices = np.hstack((left_indices,right_indices))
-    return filled_image
-
+        left_edge = cols_to_fill[0] - 1
+        right_edge = cols_to_fill[-1] + 1
+        left_val = filled[row, left_edge]
+        right_val = filled[row, right_edge]
+        #Fill pixels one at a time (midpoint-based)
+        while len(cols_to_fill) > 0:
+            mid = len(cols_to_fill) // 2
+            target_col = cols_to_fill[mid]
+            filled[row, target_col] = (left_val + right_val) // 2
+            mask[row, target_col] = 0           #Remove the filled column and update mask
+            cols_to_fill = np.delete(cols_to_fill, mid)
+    return filled
 #function for removing stains 
 def stain_removal(img):
     global brush_size  
